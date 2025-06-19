@@ -25,11 +25,13 @@ struct MenuPose: View {
                 Color.black
                     .ignoresSafeArea()
                 
-                VStack {
-                    Card()
-                    Card()
-                    Card()
-                    Card()
+                ScrollView{
+                    VStack {
+                        Card()
+                        Card()
+                        Card()
+                        Card()
+                    }
                 }
             }
             .navigationTitle("Select Pose")

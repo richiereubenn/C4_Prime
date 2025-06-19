@@ -33,9 +33,7 @@ struct Card: View {
                         .multilineTextAlignment(.leading)
                         .padding(.bottom, 10)
 
-                    Button(action: {
-                        print("Tombol Start ditekan!")
-                    }) {
+                    NavigationLink(destination: BodyDetection()) {
                         HStack {
                             Spacer()
                             Text("Start")
