@@ -15,49 +15,68 @@ struct Card: View {
             Color(red: 0.15, green: 0.15, blue: 0.15)
 
             HStack {
-                Image("placeholder_bodybuilder")
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: UIScreen.main.bounds.width * 0.25)
-                    .clipped()
-                    .cornerRadius(15)
+                ZStack(alignment: .bottomLeading) {
+                    Image("front-double-bicep")
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 250, height: 300)
+                        .cornerRadius(15)
+                        .offset(x:-40, y:30)
+                        
+                    
+                    VStack(alignment: .trailing) {
+                        Spacer()
+                        
+                        Text(poseTitle)
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.leading)
+                            .padding(.bottom, 10)
+                            .offset(x:-20)
 
-                Spacer()
-                    .frame(width: 20)
-
-                VStack(alignment: .leading) {
-                    Text(poseTitle)
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.leading)
-                        .padding(.bottom, 10)
-
-                    Button(action: {
-                        print("Tombol Start ditekan!")
-                    }) {
-                        HStack {
-                            Spacer()
-                            Text("Start")
-                                .font(.title3)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.yellow)
-
-                            Image(systemName: "arrow.right")
-                                .font(.title3)
-                                .foregroundColor(.yellow)
+                        Button(action: {
+                            print("Tombol Start ditekan!")
+                        }) {
+                            NavigationLink(destination: SelectPhoto()) {
+                                HStack {
+                                    Spacer()
+                                    Text("Start")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.yellow)
+                                    
+                                    Image(systemName: "arrow.right")
+                                        .font(.subheadline)
+                                        .foregroundColor(.yellow)
+                                }
+                                .offset(x: -20)
+                            }
                         }
+                        
+                        Spacer()
                     }
+                    .padding(.leading, 20)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 0.15, green: 0.15, blue: 0.15).opacity(0.0), // kiri transparan
+                                Color(red: 0.15, green: 0.15, blue: 0.15).opacity(1.0)
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(15)
+                    
                 }
-                .padding(.trailing, 20)
 
-                Spacer()
+                
             }
-            .padding(.horizontal, 10)
+
         }
-        .frame(height: 200)
+        .frame(height: 180)
         .cornerRadius(20)
-        .padding(10)
     }
 }
 
