@@ -10,6 +10,7 @@ import SwiftUI
 struct BodyDetection: View {
     @State private var cameraViewModel = CameraModel()
     @State private var poseViewModel = PoseEstimationModel()
+    
         
         var body: some View {
             // 2.
@@ -17,6 +18,11 @@ struct BodyDetection: View {
                 // 2a.
                 CameraPreviewView(session: cameraViewModel.session)
                     .edgesIgnoringSafeArea(.all)
+                    .onAppear{
+                        Task{
+                            try txtToSpeech.speak(text: "prepare yourself to enter the camera", completion: {})
+                        }
+                    }
                 // 2b.
                 PoseOverlayView(
                     bodyParts: poseViewModel.detectedBodyParts,
