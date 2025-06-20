@@ -23,12 +23,25 @@ class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
     // 2.
     var detectedBodyParts: [HumanBodyPoseObservation.JointName: CGPoint] = [:]
     var bodyConnections: [BodyConnection] = []
+//    var bufferImage: CMSampleBuffer?
+    
+    var frameCount = 0
+    var processingInterval = 15
     
     override init() {
         super.init()
         setupBodyConnections()
     }
     
+    private let bodyCorrection = BodyCorrectionModel()
+    
+    private func increaseFrameCount(){
+        if frameCount >= 100 {
+            frameCount = 0
+        }else {
+            frameCount += 1
+        }
+    }
     // 3.
     private func setupBodyConnections() {
         bodyConnections = [
@@ -52,13 +65,38 @@ class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
     // 4.
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         Task {
+            increaseFrameCount()
+            
             if let detectedPoints = await processFrame(sampleBuffer) {
                 DispatchQueue.main.async {
                     self.detectedBodyParts = detectedPoints
                 }
             }
             
-            // TODO: Put The Correction Logic HERE!
+            guard frameCount % processingInterval == 0 else {
+                    return // Lewati frame ini
+            }
+            
+            let request = DetectHumanBodyPose3DRequest()
+            
+            let obsv = try await request.perform(on: sampleBuffer)
+            guard let obsvdata : HumanBodyPose3DObservation = obsv.first else {
+                    print("\n======================\n\n\n❌No one Human detected❌\n")
+                    return
+                }
+            
+            let onPositionObsv = bodyCorrection.onPositionFrontDoubleBicepPose(observation: obsvdata)
+            
+            guard onPositionObsv.isPoseCorrect else {
+                print(onPositionObsv.feedback)
+                return
+            }
+            
+            print("\n✅✅✅✅✅✅BODY IS on Position")
+            
+            
+            let isPoseCorrect = bodyCorrection.DoubleBicepCorrection(bodyPose: obsvdata)
+            
         }
     }
 
