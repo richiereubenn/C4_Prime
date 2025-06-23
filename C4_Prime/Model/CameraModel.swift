@@ -18,6 +18,10 @@ class CameraModel {
     private let videoDataOutputQueue = DispatchQueue(label: "videoDataOutputQueue")
     private let videoDataOutput = AVCaptureVideoDataOutput()
     weak var delegate: AVCaptureVideoDataOutputSampleBufferDelegate?
+    private let photoOutput = AVCapturePhotoOutput()
+    private var inProgressPhotoCaptures = [Int64: PhotoCaptureProcessor]()
+    
+    
     
     // 2.
     func checkPermission() async {
@@ -66,9 +70,63 @@ class CameraModel {
                 connection.isVideoMirrored = true
             }
             
+            
+            // Config for Photo output
+            self.photoOutput.isHighResolutionCaptureEnabled = true
+            self.photoOutput.isLivePhotoCaptureEnabled = self.photoOutput.isLivePhotoCaptureSupported
+            guard self.session.canAddOutput(self.photoOutput) else { return }
+            self.session.sessionPreset = .photo
+            self.session.addOutput(self.photoOutput)
+            
+            
             self.session.commitConfiguration()
             self.session.startRunning()
+            
+            
+        }
+        
+    }
+    
+    public func stopSession() {
+        // Jalankan di sessionQueue untuk thread safety
+        sessionQueue.async {
+            // Hanya hentikan jika sesi sedang berjalan
+            if self.session.isRunning {
+                self.session.stopRunning()
+                print("✅ Camera session stopped.")
+            }
+            
+            // Batalkan semua permintaan foto yang mungkin masih berjalan
+            // untuk mencegah continuation leak.
         }
     }
+    
+    func takePhoto() async throws -> Data {
+            let photoSettings = AVCapturePhotoSettings()
+            // ... atur photoSettings Anda seperti sebelumnya ...
+            
+            print("📸📸Taking photo with settings: \(photoSettings)📸")
+            
+            return try await withCheckedThrowingContinuation { continuation in
+                sessionQueue.async {
+                    // Buat delegasi, tapi kali ini kita berikan "cara untuk membersihkan diri".
+                    // `onFinish` closure ini akan dipanggil oleh delegasi saat tugasnya selesai.
+                    let delegate = PhotoCaptureProcessor(
+                        continuation: continuation,
+                        onFinish: { [weak self] uniqueID in
+                            // Hapus delegasi dari dictionary setelah selesai.
+                            self?.inProgressPhotoCaptures.removeValue(forKey: uniqueID)
+                        }
+                    )
+                    
+                    // Simpan delegasi di dictionary kita. Ini adalah referensi `strong`
+                    // yang akan menjaganya tetap hidup.
+                    self.inProgressPhotoCaptures[photoSettings.uniqueID] = delegate
+                    
+                    // Panggil capturePhoto seperti biasa.
+                    self.photoOutput.capturePhoto(with: photoSettings, delegate: delegate)
+                }
+            }
+        }
 
 }

@@ -38,7 +38,7 @@ struct Card: View {
                             .opacity(pose.available ? 1.0 : 0.6)
                         
                         if pose.available {
-                            NavigationLink(destination: SelectPhoto()) {
+                            NavigationLink(destination: BodyDetection()) {
                                 HStack {
                                     Spacer()
                                     Text("Start")
