@@ -396,13 +396,14 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"C4_Prime/Preview Content\"";
-				DEVELOPMENT_TEAM = QMV7N4KZBR;
+				DEVELOPMENT_TEAM = 85GYMJ45N9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "C4-Prime-Info.plist";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Aplikasi memerlukan galeri photo untuk menyimpan foto.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Aplikasi memerlukan galeri photo untuk menyimpan foto.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Aplikasi memerlukan galeri photo untuk menyimpan foto.";
+
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -430,13 +431,14 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"C4_Prime/Preview Content\"";
-				DEVELOPMENT_TEAM = QMV7N4KZBR;
+				DEVELOPMENT_TEAM = 85GYMJ45N9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "C4-Prime-Info.plist";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Aplikasi memerlukan galeri photo untuk menyimpan foto.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Aplikasi memerlukan galeri photo untuk menyimpan foto.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Aplikasi memerlukan galeri photo untuk menyimpan foto.";
+
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

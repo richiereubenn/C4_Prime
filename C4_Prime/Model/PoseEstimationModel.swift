@@ -26,7 +26,8 @@ class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 //    var bufferImage: CMSampleBuffer?
     
     var frameCount = 0
-    var processingInterval = 10
+
+    var processingInterval = 15
     
     override init() {
         super.init()
@@ -86,9 +87,12 @@ class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
                 }
             
             let onPositionObsv = bodyCorrection.onPositionFrontDoubleBicepPose(observation: obsvdata)
+
             
             guard onPositionObsv.isPoseCorrect else {
                 print(onPositionObsv.feedback)
+                SpeechQueueManager.shared.stopAllSpeech()
+//                SpeechQueueManager.shared.enqueueSpeech(text: "Follow the overlay guide", priority: .background)
                 return
             }
             
@@ -97,6 +101,12 @@ class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
             
             let isPoseCorrect = bodyCorrection.DoubleBicepCorrection(bodyPose: obsvdata)
             
+
+            if isPoseCorrect == true {
+                SpeechQueueManager.shared.enqueueSpeech(text: "Keep it UP!. 1,2,3", priority: .background)
+                
+            }
+   
         }
     }
 

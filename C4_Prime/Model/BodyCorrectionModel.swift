@@ -52,6 +52,7 @@ struct BodyCorrectionModel {
         var missingJoints: [String] = []
         var feedback: [String] = []
         var isCorrectPose = false
+
         var confidence: Float = 1.0
         
         detectedJoints["leftShoulder"] = leftShoulder != nil
@@ -80,8 +81,98 @@ struct BodyCorrectionModel {
         
         print("\nPOSE ANALYSIS:")
         
-        
 
+        let shoulderElbowMinThreshold: Float = 0.040
+        let shoulderElbowMaxThreshold: Float = 0.220
+        let flexThresholdNormalized: Float = 0.5
+        
+        var leftArmAligned = false
+        var rightArmAligned = false
+        
+        if let s = leftShoulder, let e = leftElbow {
+            let deltaY = e.localPosition.columns.3.y - s.localPosition.columns.3.y
+            let absDeltaY = abs(deltaY)
+            leftArmAligned = (absDeltaY >= shoulderElbowMinThreshold) && (absDeltaY <= shoulderElbowMaxThreshold)
+            print("Left arm aligned: \(leftArmAligned ? "✅ YES" : "❌ NO") (ΔY: \(String(format: "%.3f", absDeltaY)))")
+            
+            if !leftArmAligned {
+                feedback.append(deltaY < -0.02
+                                ? "Siku kiri terlalu rendah dari bahu (ΔY: \(String(format: "%.3f", deltaY)))"
+                                : "Siku kiri terlalu tinggi dari bahu (ΔY: \(String(format: "%.3f", deltaY)))")
+                isCorrectPose = false
+                confidence -= 0.3
+            }
+        }
+        
+        if let s = rightShoulder, let e = rightElbow {
+            let deltaY = e.localPosition.columns.3.y - s.localPosition.columns.3.y
+            let absDeltaY = abs(deltaY)
+            rightArmAligned = (absDeltaY >= shoulderElbowMinThreshold) && (absDeltaY <= shoulderElbowMaxThreshold)
+            print("Right arm aligned: \(rightArmAligned ? "✅ YES" : "❌ NO") (ΔY: \(String(format: "%.3f", absDeltaY)))")
+            
+            if !rightArmAligned {
+                feedback.append(deltaY < -0.02
+                                ? "Siku kanan terlalu rendah dari bahu (ΔY: \(String(format: "%.3f", deltaY)))"
+                                : "Siku kanan terlalu tinggi dari bahu (ΔY: \(String(format: "%.3f", deltaY)))")
+                isCorrectPose = false
+                confidence -= 0.3
+            }
+        }
+        
+        if let s = leftShoulder, let e = leftElbow, let w = leftWrist {
+            let elbowY = e.localPosition.columns.3.y
+            let wristY = w.localPosition.columns.3.y
+            let deltaY = wristY - elbowY
+            let armLength = abs(e.localPosition.columns.3.y - s.localPosition.columns.3.y)
+            let normalizedDeltaY = armLength > 0 ? deltaY / armLength : 0
+            
+            let flexed = leftArmAligned ? normalizedDeltaY > flexThresholdNormalized : deltaY > 0
+            print("Left bicep flexed: \(flexed ? "✅ YES" : "❌ NO") (ΔY: \(String(format: "%.3f", deltaY)), Normalized: \(String(format: "%.3f", normalizedDeltaY)), ArmAligned: \(leftArmAligned ? "✅" : "❌"))")
+            
+            if !flexed {
+                feedback.append("Tekuk lengan kiri lebih kuat untuk menunjukkan bisep")
+                isCorrectPose = false
+                confidence -= 0.2
+            }
+        }
+        
+        if let s = rightShoulder, let e = rightElbow, let w = rightWrist {
+            let elbowY = e.localPosition.columns.3.y
+            let wristY = w.localPosition.columns.3.y
+            let deltaY = wristY - elbowY
+            let armLength = abs(e.localPosition.columns.3.y - s.localPosition.columns.3.y)
+            let normalizedDeltaY = armLength > 0 ? deltaY / armLength : 0
+            
+            let flexed = rightArmAligned ? normalizedDeltaY > flexThresholdNormalized : deltaY > 0
+            print("Right bicep flexed: \(flexed ? "✅ YES" : "❌ NO") (ΔY: \(String(format: "%.3f", deltaY)), Normalized: \(String(format: "%.3f", normalizedDeltaY)), ArmAligned: \(rightArmAligned ? "✅" : "❌"))")
+            
+            if !flexed {
+                feedback.append("Tekuk lengan kanan lebih kuat untuk menunjukkan bisep")
+                isCorrectPose = false
+                confidence -= 0.2
+            }
+        }
+        
+        let elbowSeparationThreshold: Float = 2
+        
+        if let leftElbow = leftElbow, let rightElbow = rightElbow,
+           let leftShoulder = leftShoulder, let rightShoulder = rightShoulder {
+            
+            let deltaY = abs(leftElbow.localPosition.columns.3.y - rightElbow.localPosition.columns.3.y)
+            
+            let shoulderHeight = abs(leftShoulder.localPosition.columns.3.y - rightShoulder.localPosition.columns.3.y)
+            let normalizedElbowDeltaY = shoulderHeight > 0 ? deltaY / shoulderHeight : 0
+            
+            let isElbowTooClose = normalizedElbowDeltaY < elbowSeparationThreshold
+            
+            print("Elbow vertical separation: \(String(format: "%.3f", deltaY)), Normalized: \(String(format: "%.3f", normalizedElbowDeltaY)) → \(isElbowTooClose ? "❌ TOO CLOSE" : "✅ OK")")
+            
+            if isElbowTooClose {
+                feedback.append("Siku kiri dan kanan terlalu sejajar vertikal - rentangkan siku lebih keluar")
+                isCorrectPose = false
+                confidence -= 0.2
+            }
+        }
         
         confidence = max(0.0, confidence)
         let finalFeedback = isCorrectPose ? "Pose Front Double Bicep SEMPURNA! 💪" : feedback.joined(separator: ", ")
@@ -100,8 +191,7 @@ struct BodyCorrectionModel {
         )
     }
     
-    
-    
+
 
     /**
      Menganalisis orientasi 3D secara komprehensif antara dua sendi (joint).
@@ -233,18 +323,39 @@ struct BodyCorrectionModel {
         print("leftSEResult Sudut XY: \(leftSEResult.angleXY)° ")
         print("leftSEResult Sudut XZ: \(leftSEResult.angleXZ)° ")
         
-        
+
         let leftEWResult = self.perform3DAnalysis(from: leftElbow, to: leftWrist)
         print("leftEWResult Sudut XY: \(leftEWResult.angleXY)° ")
         print("leftEWResult Sudut XZ: \(leftEWResult.angleXZ)° ")
-        
+ 
 
+        let SECalResult =  calculateSEVerticalPoseCorrection(angle: leftSEResult.angleXY, side: .left)
+        
+        print("SECalResult: ",SECalResult)
+        
+        guard SECalResult == .ideal else {
+            SpeechQueueManager.shared.enqueueSpeech(text: "Right Arm \(SECalResult.rawValue)", priority: .userInitiated)
+            print("🔥OUT FROM HERE SECalResult: ", SECalResult)
+            return false
+        }
+        
+        
         
         let rightShoulder = SIMD3<Double>(Double(rightShoulderCoord.x), Double(rightShoulderCoord.y), Double(rightShoulderCoord.x))
         let rightElbow = SIMD3<Double>(Double(rightElbowCoord.x), Double(rightElbowCoord.y), Double(rightElbowCoord.x))
         let rightWrist = SIMD3<Double>(Double(rightWristCoord.x), Double(rightWristCoord.y), Double(rightWristCoord.x))
 
         let rightSEResult = perform3DAnalysis(from: rightShoulder, to: rightElbow)
+        
+
+        let RightSECalResult =  calculateSEVerticalPoseCorrection(angle: rightSEResult.angleXY, side: .right)
+        
+        guard RightSECalResult == .ideal else {
+            print("RightSECalResult: ",RightSECalResult)
+            SpeechQueueManager.shared.enqueueSpeech(text: "Left Arm \(RightSECalResult.rawValue)", priority: .userInitiated)
+            print("🔥OUT FROM HERE: ", RightSECalResult)
+            return false
+        }
         
         print("\nrightSEResult Sudut XY: \(rightSEResult.angleXY)° ")
         print("rightSEResult Sudut XZ: \(rightSEResult.angleXZ)° ")
@@ -254,13 +365,163 @@ struct BodyCorrectionModel {
         print("rightEWResult Sudut XZ: \(rightEWResult.angleXZ)° ")
         
 
+        
+        let leftEWResult = self.perform3DAnalysis(from: leftElbow, to: leftWrist)
+        print("leftEWResult Sudut XY: \(leftEWResult.angleXY)° ")
+        print("leftEWResult Sudut XZ: \(leftEWResult.angleXZ)° ")
+        
+        let LeftEWCalResult =  calculateEWHorizontalPoseCorrection(angle: leftEWResult.angleXY, side: .left)
+        
+        guard LeftEWCalResult == .ideal else {
+            SpeechQueueManager.shared.enqueueSpeech(text: "Right Wrist \(LeftEWCalResult.rawValue)", priority: .userInitiated)
+            print("🔥OUT FROM HERE: ", LeftEWCalResult)
+            return false
+        }
+        
+        let rightEWCalResult =  calculateEWHorizontalPoseCorrection(angle: rightEWResult.angleXY, side: .right)
+        
+        print("rightEWCalResult: ", rightEWCalResult)
+        
+        guard rightEWCalResult == .ideal else {
+            SpeechQueueManager.shared.enqueueSpeech(text: "Left Wrist \(rightEWCalResult.rawValue)", priority: .userInitiated)
+            print("🔥OUT FROM HERE: ", rightEWCalResult)
+            return false
+        }
+
         let shouldercymetice = perform3DAnalysis(from: leftShoulder, to: rightShoulder)
         print("\nshouldercymetice Sudut XY: \(shouldercymetice.angleXY)° ")
         print("shouldercymetice Sudut XZ: \(shouldercymetice.angleXZ)° ")
         
         
+
+        
         return true
     }
+    
+    enum BodySide {
+        case left
+        case right
+    }
+
+    /// Merepresentasikan status postur yang terdeteksi.
+    enum CorrectionSEStatus: String {
+        case ideal = "Ideal"
+        case tooHight = "Too Hight"
+        case tooLow = "Too Low"
+    }
+
+    enum CorrectionEWStatus: String {
+        case ideal = "Ideal"
+        case tooIn = "Too IN"
+        case tooOut = "Too OUT"
+    }
+
+
+
+    /**
+     Menentukan status postur (ideal, terlalu tinggi, atau terlalu rendah)
+     berdasarkan sudut dan sisi tubuh yang diberikan.
+     
+     Fungsi ini menggunakan threshold yang telah dianalisis dari data spesifik Anda.
+     
+     - Parameter sudut: Sudut kemiringan yang telah dihitung (dalam rentang 0-360).
+     - Parameter sisi: Sisi tubuh yang dianalisis (.kiri atau .kanan).
+     - Parameter toleransi: Nilai toleransi dalam derajat yang ditambahkan pada rentang 'ideal'.
+     - Returns: Enum `CorrectionSEStatus` yang sesuai.
+     */
+    func calculateSEVerticalPoseCorrection(
+        angle: Double,
+        side: BodySide,
+        tolerance: Double = 10.5 // Default tolerance 5 derajat
+    ) -> CorrectionSEStatus {
+        
+        switch side {
+        case .left:
+            // Threshold berdasarkan analisis data untuk tangan KIRI
+            let idealBawah: Double = 301.6
+            let idealAtas: Double = 305.0
+            
+            // Periksa apakah sudut masuk dalam rentang ideal + tolerance
+            if angle >= idealBawah - tolerance && angle <= idealAtas + tolerance {
+                return .ideal
+            }
+            
+            // Untuk tangan kiri, angle yang lebih kecil berarti lengan lebih tinggi
+            if angle < idealBawah - tolerance {
+                return .tooLow
+            } else {
+                return .tooHight
+            }
+            
+        case .right:
+            // Threshold berdasarkan analisis data untuk tangan KANAN
+            let idealBawah: Double = 229.0
+            let idealAtas: Double = 233.6
+            
+            // Periksa apakah angle masuk dalam rentang ideal + tolerance
+            if angle >= idealBawah - tolerance && angle <= idealAtas + tolerance {
+                return .ideal
+            }
+            
+            // Untuk tangan kanan, angle yang LEBIH BESAR berarti lengan lebih tinggi
+            if angle > idealAtas + tolerance {
+                return .tooLow
+            } else {
+                return .tooHight
+            }
+        }
+    }
+
+    func calculateEWHorizontalPoseCorrection(
+        angle: Double,
+        side: BodySide,
+        tolerance: Double = 2.5 // Default tolerance 5 derajat
+    ) -> CorrectionEWStatus {
+        
+        switch side {
+        case .left:
+            // Threshold berdasarkan analisis data untuk tangan KIRI
+            let idealIn: Double = 139.0
+            let idealOut: Double = 137.6
+            
+            // Periksa apakah sudut masuk dalam rentang ideal + tolerance
+            if angle <= idealIn + tolerance && angle >= idealOut - tolerance {
+                return .ideal
+            }
+            
+            // Untuk tangan kiri, angle yang lebih kecil berarti lengan lebih tinggi
+            if angle > idealIn + tolerance {
+                return .tooIn
+            } else {
+                print("😖😖😖😖Masuk sini cok left: ", angle )
+                print("IdealIn: ", idealIn + tolerance)
+                print("idealOut: ", idealOut - tolerance)
+                return .tooOut
+            }
+            
+        case .right:
+            // Threshold berdasarkan analisis data untuk tangan KANAN
+            let idealIn: Double = 48.0
+            let idealOut: Double = 50.0
+            
+            
+            // Periksa apakah sudut masuk dalam rentang ideal + tolerance
+            if angle >= idealIn - tolerance && angle <= idealOut + tolerance {
+                return .ideal
+            }
+            
+            // Untuk tangan kiri, angle yang lebih kecil berarti lengan lebih tinggi
+            print("😖😖😖😖Masuk sini cok right: ", angle )
+            if angle < idealIn - tolerance {
+                return .tooIn
+            } else {
+                return .tooOut
+            }
+        }
+    }
+
+
+
 }
 
 

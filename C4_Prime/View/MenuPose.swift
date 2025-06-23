@@ -11,6 +11,7 @@ struct MenuPose: View {
     
     
     var body: some View {
+
             NavigationView {
                 ZStack {
                     Color.black.ignoresSafeArea()
