@@ -87,15 +87,24 @@ class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
             
             let onPositionObsv = bodyCorrection.onPositionFrontDoubleBicepPose(observation: obsvdata)
             
+            
             guard onPositionObsv.isPoseCorrect else {
                 print(onPositionObsv.feedback)
+                SpeechQueueManager.shared.stopAllSpeech()
+//                SpeechQueueManager.shared.enqueueSpeech(text: "Follow the overlay guide", priority: .background)
                 return
             }
+            
             
             print("\n✅✅✅✅✅✅BODY IS on Position")
             
             
             let isPoseCorrect = bodyCorrection.DoubleBicepCorrection(bodyPose: obsvdata)
+            
+            if isPoseCorrect == true {
+                SpeechQueueManager.shared.enqueueSpeech(text: "Keep it UP!. 1,2,3", priority: .background)
+                
+            }
             
         }
     }
