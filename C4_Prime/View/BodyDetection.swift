@@ -10,13 +10,15 @@ import SwiftUI
 struct BodyDetection: View {
     @State private var cameraViewModel = CameraModel()
     @State private var poseViewModel = PoseEstimationModel()
+
     @State private var isReadyToDetect = false
-    
+
         
         var body: some View {
             // 2.
             ZStack {
                 // 2a.
+
 //                if cameraViewModel.session.isRunning == false {
 //                    
 //                    Text("Preparing your camera...")
@@ -31,12 +33,14 @@ struct BodyDetection: View {
 //                        
 //                        
 //                    }
+
                 // 2b.
                 PoseOverlayView(
                     bodyParts: poseViewModel.detectedBodyParts,
                     connections: poseViewModel.bodyConnections
                 )
             }
+
             .task(priority: .userInitiated) {
                 await cameraViewModel.checkPermission()
                 cameraViewModel.delegate = poseViewModel

@@ -51,7 +51,8 @@ struct BodyCorrectionModel {
         var detectedJoints: [String: Bool] = [:]
         var missingJoints: [String] = []
         var feedback: [String] = []
-        var isCorrectPose = true
+        var isCorrectPose = false
+
         var confidence: Float = 1.0
         
         detectedJoints["leftShoulder"] = leftShoulder != nil
@@ -80,6 +81,7 @@ struct BodyCorrectionModel {
         
         print("\nPOSE ANALYSIS:")
         
+
         let shoulderElbowMinThreshold: Float = 0.040
         let shoulderElbowMaxThreshold: Float = 0.220
         let flexThresholdNormalized: Float = 0.5
@@ -172,7 +174,6 @@ struct BodyCorrectionModel {
             }
         }
         
-        
         confidence = max(0.0, confidence)
         let finalFeedback = isCorrectPose ? "Pose Front Double Bicep SEMPURNA! 💪" : feedback.joined(separator: ", ")
         
@@ -190,7 +191,7 @@ struct BodyCorrectionModel {
         )
     }
     
-    
+
 
     /**
      Menganalisis orientasi 3D secara komprehensif antara dua sendi (joint).
@@ -322,7 +323,11 @@ struct BodyCorrectionModel {
         print("leftSEResult Sudut XY: \(leftSEResult.angleXY)° ")
         print("leftSEResult Sudut XZ: \(leftSEResult.angleXZ)° ")
         
-        
+
+        let leftEWResult = self.perform3DAnalysis(from: leftElbow, to: leftWrist)
+        print("leftEWResult Sudut XY: \(leftEWResult.angleXY)° ")
+        print("leftEWResult Sudut XZ: \(leftEWResult.angleXZ)° ")
+ 
 
         let SECalResult =  calculateSEVerticalPoseCorrection(angle: leftSEResult.angleXY, side: .left)
         
@@ -336,16 +341,13 @@ struct BodyCorrectionModel {
         
         
         
-        
-        
-        
-        
         let rightShoulder = SIMD3<Double>(Double(rightShoulderCoord.x), Double(rightShoulderCoord.y), Double(rightShoulderCoord.x))
         let rightElbow = SIMD3<Double>(Double(rightElbowCoord.x), Double(rightElbowCoord.y), Double(rightElbowCoord.x))
         let rightWrist = SIMD3<Double>(Double(rightWristCoord.x), Double(rightWristCoord.y), Double(rightWristCoord.x))
 
         let rightSEResult = perform3DAnalysis(from: rightShoulder, to: rightElbow)
         
+
         let RightSECalResult =  calculateSEVerticalPoseCorrection(angle: rightSEResult.angleXY, side: .right)
         
         guard RightSECalResult == .ideal else {
@@ -362,6 +364,7 @@ struct BodyCorrectionModel {
         print("\nrightEWResult Sudut XY: \(rightEWResult.angleXY)° ")
         print("rightEWResult Sudut XZ: \(rightEWResult.angleXZ)° ")
         
+
         
         let leftEWResult = self.perform3DAnalysis(from: leftElbow, to: leftWrist)
         print("leftEWResult Sudut XY: \(leftEWResult.angleXY)° ")
@@ -384,11 +387,13 @@ struct BodyCorrectionModel {
             print("🔥OUT FROM HERE: ", rightEWCalResult)
             return false
         }
+
         let shouldercymetice = perform3DAnalysis(from: leftShoulder, to: rightShoulder)
         print("\nshouldercymetice Sudut XY: \(shouldercymetice.angleXY)° ")
         print("shouldercymetice Sudut XZ: \(shouldercymetice.angleXZ)° ")
         
         
+
         
         return true
     }

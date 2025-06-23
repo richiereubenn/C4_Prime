@@ -70,5 +70,5 @@ class CameraModel {
             self.session.startRunning()
         }
     }
-    
+
 }

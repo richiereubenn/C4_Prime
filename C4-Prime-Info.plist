@@ -2,6 +2,31 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict/>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>Info</string>
+		</dict>
+		<dict/>
+		<dict/>
+		<dict/>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLIconFile</key>
+			<string></string>
+			<key>CFBundleURLName</key>
+			<string>Info</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>adf</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSCameraReactionEffectGesturesEnabledDefault</key>
 	<true/>
 </dict>
