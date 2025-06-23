@@ -146,126 +146,137 @@ class TextToSpeechService: NSObject, AVSpeechSynthesizerDelegate, TextToSpeechSe
 struct QueuedSpeechRequest {
     let text: String
     let voiceIdentifier: String?
-    let priority: DispatchQoS.QoSClass // Tambahkan prioritas
+    // Tidak lagi menggunakan priority DispatchQoS.QoSClass untuk keputusan antrean di sini,
+    // karena kita akan lebih fokus pada "terbaru" vs "lama" untuk realtime.
+    // Namun, kita bisa tetap meneruskan QoS ke speak() method jika dibutuhkan untuk scheduling task.
+    let qos: DispatchQoS.QoSClass
     let completion: ((Result<Void, TextToSpeechError>) -> Void)? // Optional
+    let timestamp: Date // Tambahkan timestamp untuk melacak kapan pesan dibuat
 }
 
 class SpeechQueueManager: ObservableObject {
-    private var callCount = 0
-    private var callCountper = 15
-    
     static let shared = SpeechQueueManager() // Singleton
     
     private let ttsService: TextToSpeechServiceProtocol // Gunakan protokol
+    // Kita akan menggunakan Array, tapi dengan logika yang berbeda untuk penanganan
     private var speechQueue: [QueuedSpeechRequest] = []
-    private let queueAccess = DispatchQueue(label: "com.yourapp.speechQueueAccess", attributes: .concurrent) // Concurrent queue for thread-safe access
+    
+    // Gunakan DispatchQueue.main untuk memastikan semua interaksi UI dan AVSpeechSynthesizer di main thread.
+    // Ini juga menyederhanakan sinkronisasi karena AVSpeechSynthesizer memang membutuhkan main thread.
+    private let queueAccess = DispatchQueue.main // Semua operasi akan di Main Thread
+    
     private var isProcessingQueue: Bool = false // Flag untuk menghindari pemrosesan ganda
+    
+    // Threshold untuk mencegah spamming feedback yang sama dalam waktu singkat
+    private let minimumTimeBetweenSameFeedback: TimeInterval = 2.0 // Minimal 1 detik antar feedback yang sama
+    private var lastSpokenFeedback: (text: String, timestamp: Date)?
 
     // Inisialisasi dengan TextToSpeechService actual
     private init(ttsService: TextToSpeechService = TextToSpeechService()) {
         self.ttsService = ttsService
     }
     
-    private func increaseCallCount() {
-        if callCount % callCountper == 0 || callCount == callCountper * 3 {
-            callCount = 0
-            return
-        }
-        callCount += 1
-        
-    }
-
-    /// Menambahkan permintaan bicara ke antrean.
+    /// Menambahkan permintaan bicara ke antrean dengan strategi realtime.
     /// - Parameters:
     ///   - text: Teks yang akan diucapkan.
     ///   - voiceIdentifier: Identifier suara.
-    ///   - priority: Prioritas QoS untuk permintaan ini.
-    ///   - interruptCurrent: Jika true, akan menghentikan ucapan saat ini dan memprioritaskan yang baru.
+    ///   - qos: Quality of Service untuk task yang akan berbicara.
+    ///   - forceSpeak: Jika true, akan memaksa ucapan ini untuk diputar segera, menghentikan yang sedang berjalan.
+    ///                 Jika false, akan mengikuti logika smart queue (replace/ignore).
     ///   - completion: Closure yang dipanggil saat ucapan selesai atau gagal.
-    func enqueueSpeech(text: String, voiceIdentifier: String? = nil, priority: DispatchQoS.QoSClass = .utility, interruptCurrent: Bool = false, completion: ((Result<Void, TextToSpeechError>) -> Void)? = nil) {
+    func enqueueSpeech(text: String, voiceIdentifier: String? = nil, priority: DispatchQoS.QoSClass = .utility, forceSpeak: Bool = false, completion: ((Result<Void, TextToSpeechError>) -> Void)? = nil) {
         
-        let request = QueuedSpeechRequest(text: text, voiceIdentifier: voiceIdentifier, priority: priority, completion: completion)
-
-        queueAccess.async(flags: .barrier) { [weak self] in // Gunakan barrier untuk modifikasi array
+        // Pastikan operasi di main queue, karena AVSpeechSynthesizer membutuhkannya
+        queueAccess.async { [weak self] in
             guard let self = self else { return }
+            
+            let newRequest = QueuedSpeechRequest(text: text, voiceIdentifier: voiceIdentifier, qos: priority, completion: completion, timestamp: Date())
 
-            if interruptCurrent && self.ttsService.isSpeaking {
-                self.ttsService.stopSpeaking() // Hentikan yang sedang berjalan
-                self.speechQueue.removeAll() // Kosongkan antrean jika ada interupsi
-                print("SpeechQueueManager: Current speech interrupted and queue cleared.")
-            } else if self.ttsService.isSpeaking {
-                // Jika sedang berbicara dan tidak ada interupsi, tambahkan ke antrean berdasarkan prioritas
-                if self.callCount == 0 || self.speechQueue.last?.text != request.text{
-                    print("CALLED UPSSS CUY")
-                    self.insertIntoQueue(request)
-                    print("SpeechQueueManager: Added to queue (not interrupting). Current queue size: \(self.speechQueue.count)")
-                    return // Jangan proses sekarang, biarkan yang sedang berjalan selesai
+            // Logika untuk mencegah spamming feedback yang sama dalam waktu singkat
+            if let last = self.lastSpokenFeedback, last.text == newRequest.text {
+                if Date().timeIntervalSince(last.timestamp) < self.minimumTimeBetweenSameFeedback {
+                    print("SpeechQueueManager: Mengabaikan feedback yang sama terlalu cepat: \"\(newRequest.text)\"")
+                    completion?(.success(())) // Anggap berhasil agar caller tidak stuck
+                    return
                 }
             }
-            
-            // Jika tidak sedang berbicara atau baru saja diinterupsi, tambahkan dan mulai proses
-            if self.callCount == 0 || self.speechQueue.last?.text != request.text{
-                print("CALLED HERE", callCount , request.text)
-                self.speechQueue.append(request)
-                print("SpeechQueueManager: Added to queue. Current queue size: \(self.speechQueue.count)")
-                self.processNextSpeech()
-            }
-        }
-    }
 
-    // Memasukkan permintaan ke antrean berdasarkan prioritas
-    private func insertIntoQueue(_ newRequest: QueuedSpeechRequest) {
-        // Prioritas lebih tinggi harus di depan (indeks lebih kecil)
-        // AVSpeechSynthesizer QosClass values: userInteractive > userInitiated > default > utility > background
-        if let index = speechQueue.firstIndex(where: { $0.priority.rawValue.rawValue < newRequest.priority.rawValue.rawValue }) {
-            speechQueue.insert(newRequest, at: index)
-        } else {
-            speechQueue.append(newRequest)
+            if forceSpeak {
+                // Jika forceSpeak, hentikan semua yang sedang berjalan dan di antrean, lalu mulai yang baru.
+                self.ttsService.stopSpeaking()
+                self.speechQueue.removeAll()
+                self.speechQueue.append(newRequest)
+                print("SpeechQueueManager: Force speaking \"\(newRequest.text)\". Queue cleared.")
+                self.processNextSpeech()
+            } else {
+                // Jika tidak forceSpeak, implementasikan strategi "replace oldest if not speaking, otherwise ignore if queue full"
+                if self.ttsService.isSpeaking {
+                    // Jika sedang berbicara, kita tidak ingin menumpuk.
+                    // Prioritaskan yang terbaru: ganti pesan yang sedang menunggu jika ada, atau tambahkan jika antrean kosong.
+                    // Untuk realtime, kita hanya ingin 0 atau 1 pesan di antrean setelah yang sedang diputar.
+                    if self.speechQueue.isEmpty {
+                        self.speechQueue.append(newRequest)
+                        print("SpeechQueueManager: Added to single-slot queue: \"\(newRequest.text)\"")
+                    } else {
+                        // Jika sudah ada pesan menunggu (max 1), ganti dengan yang terbaru
+                        self.speechQueue[0] = newRequest
+                        print("SpeechQueueManager: Replaced pending message with: \"\(newRequest.text)\"")
+                    }
+                } else {
+                    // Jika tidak sedang berbicara, langsung tambahkan dan proses
+                    self.speechQueue.append(newRequest)
+                    print("SpeechQueueManager: No current speech, added and processing: \"\(newRequest.text)\"")
+                    self.processNextSpeech()
+                }
+            }
         }
     }
 
     /// Memulai proses ucapan berikutnya dari antrean.
     /// Ini akan dipanggil setelah ucapan selesai atau saat ada permintaan baru dan tidak ada ucapan yang berjalan.
     private func processNextSpeech() {
-        queueAccess.async(flags: .barrier) { [weak self] in
+        // Semua sudah di Main Queue karena queueAccess = DispatchQueue.main
+        guard !self.isProcessingQueue else { return }
+        self.isProcessingQueue = true
+
+        guard !self.speechQueue.isEmpty else {
+            self.isProcessingQueue = false
+            return
+        }
+
+        let request = self.speechQueue.removeFirst()
+        print("SpeechQueueManager: Processing next speech: \"\(request.text)\"")
+        
+        // Update last spoken feedback timestamp
+        self.lastSpokenFeedback = (text: request.text, timestamp: Date())
+
+        // Memanggil speak di TextToSpeechService.
+        // Karena TextToSpeechService.speak sudah @MainActor dan kita sudah di Main Queue,
+        // kita tidak perlu Task { @MainActor in ... } di sini lagi.
+        self.ttsService.speak(text: request.text, withVoice: request.voiceIdentifier) { [weak self] result in
             guard let self = self else { return }
+            
+            // Panggil completion handler asli dari request
+            request.completion?(result)
 
-            // Pastikan hanya satu instance prosesor yang berjalan
-            guard !self.isProcessingQueue else { return }
-            self.isProcessingQueue = true
-
-            // Lanjutkan di main thread karena AVSpeechSynthesizer perlu itu
-            Task { @MainActor in
-                guard !self.speechQueue.isEmpty else {
-                    self.isProcessingQueue = false
-                    return
-                }
-
-                let request = self.speechQueue.removeFirst()
-                print("SpeechQueueManager: Processing next speech: \"\(request.text)\"")
-
-                self.ttsService.speak(text: request.text, withVoice: request.voiceIdentifier) { [weak self] result in
-                    guard let self = self else { return }
-                    
-                    // Panggil completion handler asli dari request
-                    request.completion?(result)
-
-                    // Setelah selesai (sukses/gagal/batal), proses item berikutnya
-                    self.isProcessingQueue = false // Setel ulang flag
-                    self.processNextSpeech() // Rekursif panggil untuk item berikutnya
-                }
-            }
+            // Setelah selesai (sukses/gagal/batal), proses item berikutnya
+            self.isProcessingQueue = false // Setel ulang flag
+            self.processNextSpeech() // Rekursif panggil untuk item berikutnya
         }
     }
     
     /// Menghentikan semua ucapan yang sedang berjalan dan mengosongkan antrean.
     func stopAllSpeech() {
-        queueAccess.async(flags: .barrier) { [weak self] in
+        queueAccess.async { [weak self] in
             guard let self = self else { return }
-            self.ttsService.stopSpeaking()
+            if self.ttsService.isSpeaking {
+                self.ttsService.stopSpeaking()
+            }
             self.speechQueue.removeAll()
             self.isProcessingQueue = false // Reset flag
+            self.lastSpokenFeedback = nil // Reset last spoken
             print("SpeechQueueManager: All speech stopped and queue cleared.")
         }
     }
 }
+

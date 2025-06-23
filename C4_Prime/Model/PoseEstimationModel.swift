@@ -29,9 +29,11 @@ class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 
     var processingInterval = 15
     
+    var takePicture: ()async throws -> Void = {}
     override init() {
         super.init()
         setupBodyConnections()
+        
     }
     
     private let bodyCorrection = BodyCorrectionModel()
@@ -91,20 +93,31 @@ class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
             
             guard onPositionObsv.isPoseCorrect else {
                 print(onPositionObsv.feedback)
-                SpeechQueueManager.shared.stopAllSpeech()
+//                SpeechQueueManager.shared.stopAllSpeech()
 //                SpeechQueueManager.shared.enqueueSpeech(text: "Follow the overlay guide", priority: .background)
                 return
             }
-            
+//            
             print("\n✅✅✅✅✅✅BODY IS on Position")
             
             
             let isPoseCorrect = bodyCorrection.DoubleBicepCorrection(bodyPose: obsvdata)
-            
+            print("frameCount: ",frameCount)
 
             if isPoseCorrect == true {
-                SpeechQueueManager.shared.enqueueSpeech(text: "Keep it UP!. 1,2,3", priority: .background)
-                
+                SpeechQueueManager.shared.enqueueSpeech(text: "Keep it UP!. 1,2,3", priority: .background, forceSpeak: true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    // 1. Mulai sebuah 'Task' baru. Membuat Task adalah tindakan sinkron.
+                    Task {
+                        // 2. Di dalam Task ini, Anda bebas menggunakan async/await.
+                        do {
+                            try await self.takePicture()
+                            print("Foto berhasil diambil setelah 3 detik.")
+                        } catch {
+                            print("Gagal mengambil foto setelah delay: \(error)")
+                        }
+                    }
+                }
             }
    
         }

@@ -51,7 +51,7 @@ struct BodyCorrectionModel {
         var detectedJoints: [String: Bool] = [:]
         var missingJoints: [String] = []
         var feedback: [String] = []
-        var isCorrectPose = false
+        var isCorrectPose = true
 
         var confidence: Float = 1.0
         
@@ -153,7 +153,7 @@ struct BodyCorrectionModel {
             }
         }
         
-        let elbowSeparationThreshold: Float = 2
+        let elbowSeparationThreshold: Float = 4
         
         if let leftElbow = leftElbow, let rightElbow = rightElbow,
            let leftShoulder = leftShoulder, let rightShoulder = rightShoulder {
@@ -324,11 +324,6 @@ struct BodyCorrectionModel {
         print("leftSEResult Sudut XZ: \(leftSEResult.angleXZ)° ")
         
 
-        let leftEWResult = self.perform3DAnalysis(from: leftElbow, to: leftWrist)
-        print("leftEWResult Sudut XY: \(leftEWResult.angleXY)° ")
-        print("leftEWResult Sudut XZ: \(leftEWResult.angleXZ)° ")
- 
-
         let SECalResult =  calculateSEVerticalPoseCorrection(angle: leftSEResult.angleXY, side: .left)
         
         print("SECalResult: ",SECalResult)
@@ -374,7 +369,7 @@ struct BodyCorrectionModel {
         
         guard LeftEWCalResult == .ideal else {
             SpeechQueueManager.shared.enqueueSpeech(text: "Right Wrist \(LeftEWCalResult.rawValue)", priority: .userInitiated)
-            print("🔥OUT FROM HERE: ", LeftEWCalResult)
+            print("🔥OUT FROM HERE: RIGHT", LeftEWCalResult)
             return false
         }
         
@@ -384,7 +379,7 @@ struct BodyCorrectionModel {
         
         guard rightEWCalResult == .ideal else {
             SpeechQueueManager.shared.enqueueSpeech(text: "Left Wrist \(rightEWCalResult.rawValue)", priority: .userInitiated)
-            print("🔥OUT FROM HERE: ", rightEWCalResult)
+            print("🔥OUT FROM HERE: LEFT ", rightEWCalResult)
             return false
         }
 
@@ -432,7 +427,7 @@ struct BodyCorrectionModel {
     func calculateSEVerticalPoseCorrection(
         angle: Double,
         side: BodySide,
-        tolerance: Double = 10.5 // Default tolerance 5 derajat
+        tolerance: Double = 5.5 // Default tolerance 5 derajat
     ) -> CorrectionSEStatus {
         
         switch side {
@@ -475,7 +470,7 @@ struct BodyCorrectionModel {
     func calculateEWHorizontalPoseCorrection(
         angle: Double,
         side: BodySide,
-        tolerance: Double = 2.5 // Default tolerance 5 derajat
+        tolerance: Double = 7.5 // Default tolerance 5 derajat
     ) -> CorrectionEWStatus {
         
         switch side {

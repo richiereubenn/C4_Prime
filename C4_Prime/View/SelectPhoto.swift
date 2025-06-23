@@ -11,10 +11,7 @@ import Photos
 struct SelectPhoto: View {
     @Environment(\.presentationMode) var presentationMode
     
-    let availableImages: [UIImage] = [
-        UIImage(named: "front-double-bicep")!,
-        UIImage(named: "Rectangle 2")!,
-    ]
+    let availableImages: [UIImage]
 
     @State private var selectedImages: Set<UIImage> = []
     @State private var showSavedAlert = false
@@ -127,5 +124,5 @@ struct SelectPhoto: View {
 }
 
 #Preview {
-    SelectPhoto()
+    SelectPhoto(availableImages: [])
 }
