@@ -102,7 +102,7 @@ class CameraModel {
     }
     
     func takePhoto() async throws -> Data {
-            let photoSettings = AVCapturePhotoSettings()
+        var photoSettings = AVCapturePhotoSettings()
             // ... atur photoSettings Anda seperti sebelumnya ...
             
             print("📸📸Taking photo with settings: \(photoSettings)📸")
@@ -111,6 +111,17 @@ class CameraModel {
                 sessionQueue.async {
                     // Buat delegasi, tapi kali ini kita berikan "cara untuk membersihkan diri".
                     // `onFinish` closure ini akan dipanggil oleh delegasi saat tugasnya selesai.
+                    if self.photoOutput.availablePhotoCodecTypes.contains(.hevc) {
+                        photoSettings = AVCapturePhotoSettings(format:
+                            [AVVideoCodecKey: AVVideoCodecType.hevc])
+                    } else {
+                        photoSettings = AVCapturePhotoSettings()
+                    }
+                    photoSettings.flashMode = .auto
+                    photoSettings.isAutoStillImageStabilizationEnabled =
+                        self.photoOutput.isStillImageStabilizationSupported
+
+                    
                     let delegate = PhotoCaptureProcessor(
                         continuation: continuation,
                         onFinish: { [weak self] uniqueID in

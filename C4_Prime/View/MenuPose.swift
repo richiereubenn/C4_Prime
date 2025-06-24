@@ -19,6 +19,7 @@ struct MenuPose: View {
                         VStack(spacing: 15) {
                             ForEach(PoseModel.poses) { pose in
                                 Card(pose: pose)
+                                    
                             }
                         }
                         .padding(.horizontal, 16)

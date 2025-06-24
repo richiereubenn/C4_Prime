@@ -82,7 +82,7 @@ struct BodyCorrectionModel {
         print("\nPOSE ANALYSIS:")
         
 
-        let shoulderElbowMinThreshold: Float = 0.040
+        let shoulderElbowMinThreshold: Float = 0.035
         let shoulderElbowMaxThreshold: Float = 0.220
         let flexThresholdNormalized: Float = 0.5
         
@@ -153,7 +153,7 @@ struct BodyCorrectionModel {
             }
         }
         
-        let elbowSeparationThreshold: Float = 4
+        let elbowSeparationThreshold: Float = 1
         
         if let leftElbow = leftElbow, let rightElbow = rightElbow,
            let leftShoulder = leftShoulder, let rightShoulder = rightShoulder {
@@ -329,7 +329,7 @@ struct BodyCorrectionModel {
         print("SECalResult: ",SECalResult)
         
         guard SECalResult == .ideal else {
-            SpeechQueueManager.shared.enqueueSpeech(text: "Right Arm \(SECalResult.rawValue)", priority: .userInitiated)
+            SpeechQueueManager.shared.enqueueSpeech(text: generateCorrectionStatusFeedback(status: SECalResult, side: .left), priority: .userInitiated)
             print("🔥OUT FROM HERE SECalResult: ", SECalResult)
             return false
         }
@@ -347,7 +347,7 @@ struct BodyCorrectionModel {
         
         guard RightSECalResult == .ideal else {
             print("RightSECalResult: ",RightSECalResult)
-            SpeechQueueManager.shared.enqueueSpeech(text: "Left Arm \(RightSECalResult.rawValue)", priority: .userInitiated)
+            SpeechQueueManager.shared.enqueueSpeech(text: generateCorrectionStatusFeedback(status: RightSECalResult, side: .right), priority: .userInitiated)
             print("🔥OUT FROM HERE: ", RightSECalResult)
             return false
         }
@@ -368,7 +368,7 @@ struct BodyCorrectionModel {
         let LeftEWCalResult =  calculateEWHorizontalPoseCorrection(angle: leftEWResult.angleXY, side: .left)
         
         guard LeftEWCalResult == .ideal else {
-            SpeechQueueManager.shared.enqueueSpeech(text: "Right Wrist \(LeftEWCalResult.rawValue)", priority: .userInitiated)
+            SpeechQueueManager.shared.enqueueSpeech(text: generateCorrectionStatusFeedback(status: LeftEWCalResult, side: .left), priority: .userInitiated)
             print("🔥OUT FROM HERE: RIGHT", LeftEWCalResult)
             return false
         }
@@ -378,7 +378,7 @@ struct BodyCorrectionModel {
         print("rightEWCalResult: ", rightEWCalResult)
         
         guard rightEWCalResult == .ideal else {
-            SpeechQueueManager.shared.enqueueSpeech(text: "Left Wrist \(rightEWCalResult.rawValue)", priority: .userInitiated)
+            SpeechQueueManager.shared.enqueueSpeech(text: generateCorrectionStatusFeedback(status: rightEWCalResult, side: .right), priority: .userInitiated)
             print("🔥OUT FROM HERE: LEFT ", rightEWCalResult)
             return false
         }
@@ -393,23 +393,42 @@ struct BodyCorrectionModel {
         return true
     }
     
-    enum BodySide {
-        case left
-        case right
+    
+    // Reverse the body side for feedback generation cause the camera mirror effect
+    enum BodySide: String {
+        case left = "right"
+        case right = "left"
     }
 
     /// Merepresentasikan status postur yang terdeteksi.
     enum CorrectionSEStatus: String {
         case ideal = "Ideal"
-        case tooHight = "Too Hight"
-        case tooLow = "Too Low"
+        case tooHight = "Lower Arm"
+        case tooLow = "Raise Arm"
     }
 
     enum CorrectionEWStatus: String {
         case ideal = "Ideal"
-        case tooIn = "Too IN"
-        case tooOut = "Too OUT"
+        case tooIn = "Spread Wrist"
+        case tooOut = "Pull Wrist"
     }
+    
+    
+    func generateCorrectionStatusFeedback(status: CorrectionSEStatus, side: BodySide) -> String {
+        if status.rawValue == "Ideal" {
+            return "Ideal"
+        }
+        
+        return status.rawValue.inserting(word: side.rawValue)
+    }
+    func generateCorrectionStatusFeedback(status: CorrectionEWStatus, side: BodySide) -> String {
+        if status.rawValue == "Ideal" {
+            return "Ideal"
+        }
+        
+        return status.rawValue.inserting(word: side.rawValue)
+    }
+    
 
 
 
@@ -427,7 +446,7 @@ struct BodyCorrectionModel {
     func calculateSEVerticalPoseCorrection(
         angle: Double,
         side: BodySide,
-        tolerance: Double = 5.5 // Default tolerance 5 derajat
+        tolerance: Double = 8.5 // Default tolerance 5 derajat
     ) -> CorrectionSEStatus {
         
         switch side {
@@ -470,13 +489,13 @@ struct BodyCorrectionModel {
     func calculateEWHorizontalPoseCorrection(
         angle: Double,
         side: BodySide,
-        tolerance: Double = 7.5 // Default tolerance 5 derajat
+        tolerance: Double = 5.5 // Default tolerance 5 derajat
     ) -> CorrectionEWStatus {
         
         switch side {
         case .left:
             // Threshold berdasarkan analisis data untuk tangan KIRI
-            let idealIn: Double = 139.0
+            let idealIn: Double = 152.0
             let idealOut: Double = 137.6
             
             // Periksa apakah sudut masuk dalam rentang ideal + tolerance
@@ -496,7 +515,7 @@ struct BodyCorrectionModel {
             
         case .right:
             // Threshold berdasarkan analisis data untuk tangan KANAN
-            let idealIn: Double = 48.0
+            let idealIn: Double = 30.0
             let idealOut: Double = 50.0
             
             
@@ -520,3 +539,38 @@ struct BodyCorrectionModel {
 }
 
 
+extension String {
+    
+    /// Menyisipkan sebuah kata di antara kata pertama dan sisa string.
+    ///
+    /// Function ini mencari spasi pertama, lalu menyisipkan kata yang diberikan di antara
+    /// bagian sebelum dan sesudah spasi tersebut.
+    ///
+    /// Contoh:
+    /// ```
+    /// "Too High".inserting(word: "Left") -> "Too Left High"
+    /// "Terlalu rendah".inserting(word: "Kanan") -> "Terlalu Kanan rendah"
+    /// "Ideal".inserting(word: "Sangat") -> "Ideal" // Tidak ada spasi, tidak ada perubahan
+    /// ```
+    /// - Parameter word: Kata (String) yang ingin disisipkan.
+    /// - Returns: Sebuah string baru dengan kata yang telah disisipkan, atau string asli jika tidak ada spasi.
+    func inserting(word: String) -> String {
+        // 1. Bersihkan string dari spasi di awal/akhir
+        let trimmedString = self.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // 2. Cari rentang (range) dari spasi pertama
+        if let rangeOfFirstSpace = trimmedString.range(of: " ") {
+            // 3. Ambil bagian sebelum spasi
+            let firstPart = trimmedString[..<rangeOfFirstSpace.lowerBound]
+            
+            // 4. Ambil bagian setelah spasi
+            let secondPart = trimmedString[rangeOfFirstSpace.upperBound...]
+            
+            // 5. Gabungkan semuanya menjadi string baru
+            return "\(firstPart) \(word) \(secondPart)"
+        }
+        
+        // 6. Jika tidak ada spasi, kembalikan string asli
+        return trimmedString
+    }
+}
