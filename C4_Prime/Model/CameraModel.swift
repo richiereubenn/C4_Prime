@@ -88,18 +88,29 @@ class CameraModel {
     }
     
     public func stopSession() {
-        // Jalankan di sessionQueue untuk thread safety
         sessionQueue.async {
-            // Hanya hentikan jika sesi sedang berjalan
-            if self.session.isRunning {
-                self.session.stopRunning()
-                print("✅ Camera session stopped.")
+            guard self.session.isRunning else {
+                return
             }
             
-            // Batalkan semua permintaan foto yang mungkin masih berjalan
-            // untuk mencegah continuation leak.
+            self.session.stopRunning()
+            
+            // Remove all inputs and outputs to fully tear down the session
+            for input in self.session.inputs {
+                self.session.removeInput(input)
+            }
+            
+            for output in self.session.outputs {
+                self.session.removeOutput(output)
+            }
+            
+            // Clear any in-progress captures to prevent memory leaks
+            self.inProgressPhotoCaptures.removeAll()
+            
+            print("✅ Camera session fully stopped and torn down.")
         }
     }
+
     
     func takePhoto() async throws -> Data {
         var photoSettings = AVCapturePhotoSettings()
