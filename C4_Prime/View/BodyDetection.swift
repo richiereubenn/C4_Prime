@@ -76,6 +76,11 @@ struct BodyDetection: View {
             .onDisappear{
                 cameraViewModel.stopSession()
             }
+            .onAppear{
+                if cameraViewModel.session.isRunning == false {
+                    cameraViewModel.session.startRunning()
+                }
+            }
             .`task`(priority: .userInitiated) {
                 await cameraViewModel.checkPermission()
                 cameraViewModel.delegate = poseViewModel
