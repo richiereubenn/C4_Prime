@@ -90,6 +90,8 @@ struct BodyDetection: View {
                 
 
             }
+            .toolbarBackground(.visible)
+            .toolbarBackground(.gray.opacity(0.1), for: .automatic)
         }
 }
 

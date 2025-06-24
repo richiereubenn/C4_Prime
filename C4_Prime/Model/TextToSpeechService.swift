@@ -57,7 +57,7 @@ class TextToSpeechService: NSObject, AVSpeechSynthesizerDelegate, TextToSpeechSe
     ///   - voiceIdentifier: The identifier for the voice to use. If `nil`, the device’s default language will be used.
     ///   - completion: A closure that is executed when the speech finishes or an error occurs.
     @MainActor
-    func speak(text: String, withVoice voiceIdentifier: String? = nil, completion: @escaping (Result<Void, TextToSpeechError>) -> Void) {
+    func speak(text: String, withVoice voiceIdentifier: String?, completion: @escaping (Result<Void, TextToSpeechError>) -> Void) {
         // Jika sedang berbicara, jangan mulai yang baru dari sini.
         // Biarkan manajemen antrean di layer yang lebih tinggi.
         guard !synthesizer.isSpeaking else {
@@ -77,11 +77,33 @@ class TextToSpeechService: NSObject, AVSpeechSynthesizerDelegate, TextToSpeechSe
         
         let utterance = AVSpeechUtterance(string: text)
         
+        // 1. Atur properti ucapan untuk kejelasan yang lebih baik
+//        utterance.rate = 0.48 // Sedikit lebih lambat dari default
+//        utterance.pitchMultiplier = 2.0
+//        
+//        
+        
+        utterance.volume = 1.0
+//        utterance.postUtteranceDelay = 0.2
+        
+        // 2. Pilih suara yang akan digunakan
+        
         if let voiceId = voiceIdentifier, let selectedVoice = AVSpeechSynthesisVoice(identifier: voiceId) {
+            // Jika pengguna sudah memilih suara tertentu, gunakan itu.
             utterance.voice = selectedVoice
+            print("Menggunakan suara yang dipilih: \(selectedVoice.name) (\(selectedVoice.quality.rawValue))")
         } else {
-            let defaultLanguage = Locale.current.language.languageCode?.identifier ?? "en-US"
-            utterance.voice = AVSpeechSynthesisVoice(language: defaultLanguage)
+            // Jika tidak, cari suara terbaik untuk bahasa Indonesia (atau bahasa lain).
+            let languageCode = "en-US" // Ganti ke bahasa yang Anda inginkan
+            if let bestVoice = findBestVoice(for: languageCode) {
+                utterance.voice = bestVoice
+                print("Menggunakan suara kualitas terbaik: \(bestVoice.name) (\(bestVoice.quality.rawValue) id \(bestVoice.identifier))")
+                
+            } else {
+                // Jika tidak ada suara yang ditemukan, gunakan fallback default sistem.
+                print("Tidak menemukan suara kualitas terbaik, menggunakan default.")
+                utterance.voice = AVSpeechSynthesisVoice(language: languageCode)
+            }
         }
         
         // Tidak perlu menghentikan suara di sini, karena guard di atas sudah memastikan
@@ -277,6 +299,38 @@ class SpeechQueueManager: ObservableObject {
             self.lastSpokenFeedback = nil // Reset last spoken
             print("SpeechQueueManager: All speech stopped and queue cleared.")
         }
+    }
+}
+
+extension TextToSpeechService {
+    func findBestVoice(for languageCode: String) -> AVSpeechSynthesisVoice? {
+        // Dapatkan semua suara yang tersedia di perangkat
+        let voices = AVSpeechSynthesisVoice.speechVoices()
+        
+        // Filter suara berdasarkan bahasa yang diinginkan
+        let languageVoices = voices.filter { $0.language == languageCode }
+        
+        // Urutkan suara berdasarkan kualitasnya (Premium > Enhanced > Default)
+        // Kita buat pemetaan kualitas ke angka agar mudah diurutkan
+        let qualityMap: [AVSpeechSynthesisVoiceQuality: Int] = [
+            .premium: 2,
+            .enhanced: 1,
+            .default: 0
+        ]
+        
+        let sortedVoices = languageVoices.sorted {
+            qualityMap[$0.quality] ?? 0 > qualityMap[$1.quality] ?? 0
+        }
+        
+        print("Ditemukan \(sortedVoices.count) suara untuk bahasa \(languageCode): ", sortedVoices)
+        print(qualityMap)
+        
+        if sortedVoices.first != nil && sortedVoices.first?.quality == .default {
+            return AVSpeechSynthesisVoice(identifier: "com.apple.ttsbundle.siri_nicky_en-US_compact")
+        }
+        
+        // Kembalikan suara pertama dari hasil urutan (yang kualitasnya paling tinggi)
+        return sortedVoices.first
     }
 }
 

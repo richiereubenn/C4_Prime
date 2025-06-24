@@ -29,6 +29,8 @@ class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 
     var processingInterval = 15
     
+    private var isOnTakePicture = false
+    
     var takePicture: ()async throws -> Void = {}
     override init() {
         super.init()
@@ -45,6 +47,11 @@ class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
             frameCount += 1
         }
     }
+    
+    func toggleOnTakePicture(){
+        isOnTakePicture = !isOnTakePicture
+    }
+    
     // 3.
     private func setupBodyConnections() {
         bodyConnections = [
@@ -106,13 +113,24 @@ class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 
             if isPoseCorrect == true {
                 SpeechQueueManager.shared.enqueueSpeech(text: "Keep it UP!. 1,2,3", priority: .background, forceSpeak: true)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                
+                // Skip is if on take picture
+                guard isOnTakePicture == false else {
+                    print("Skipping take picture because isOnTakePicture is true ", isOnTakePicture)
+                    return
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
                     // 1. Mulai sebuah 'Task' baru. Membuat Task adalah tindakan sinkron.
                     Task {
                         // 2. Di dalam Task ini, Anda bebas menggunakan async/await.
                         do {
+                            self.isOnTakePicture = true
+                            print("self.isOnTakePicture: ",self.isOnTakePicture)
                             try await self.takePicture()
                             print("Foto berhasil diambil setelah 3 detik.")
+                            self.isOnTakePicture = false
+                            print("self.isOnTakePicture: ",self.isOnTakePicture)
+
                         } catch {
                             print("Gagal mengambil foto setelah delay: \(error)")
                         }
