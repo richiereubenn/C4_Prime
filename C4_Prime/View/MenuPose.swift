@@ -9,36 +9,27 @@ import SwiftUI
 
 struct MenuPose: View {
     
-    var body: some View {
-        NavigationView {
-            ZStack {
-                Color.black
-                    .ignoresSafeArea()
-//
-//                ScrollView {
-                    VStack(spacing: 15) {
-                        Card()
-                        Card()
-                        Card()
-                    }
-                    .padding()
-//                }
-            }
-            .navigationTitle("Select Pose")
-            .navigationBarTitleDisplayMode(.large)
-        }
-    }
-
     
-    init() {
-        let appearance = UINavigationBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor.black.withAlphaComponent(0.0)
-        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
-        appearance.titleTextAttributes = [.foregroundColor: UIColor.white]
-        UINavigationBar.appearance().standardAppearance = appearance
-        UINavigationBar.appearance().scrollEdgeAppearance = appearance
-    }
+    var body: some View {
+
+            NavigationView {
+                ZStack {
+                    Color.black.ignoresSafeArea()
+
+                        VStack(spacing: 15) {
+                            ForEach(PoseModel.poses) { pose in
+                                Card(pose: pose)
+                                    
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, -40)
+                    
+                }
+                .navigationTitle("Select Pose")
+                .navigationBarTitleDisplayMode(.large)
+            }
+        }
 }
 
 #Preview {

@@ -9,73 +9,93 @@ import SwiftUI
 import Photos
 
 struct SelectPhoto: View {
-    let availableImages: [UIImage] = [
-        UIImage(named: "front-double-bicep")!,
-        UIImage(named: "Rectangle 2")!,
-        UIImage(named: "front-double-bicep")!,
-    ]
+    @Environment(\.presentationMode) var presentationMode
+    
+    let availableImages: [UIImage]
 
     @State private var selectedImages: Set<UIImage> = []
     @State private var showSavedAlert = false
 
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                Text("Pilih gambar yang ingin disimpan")
-                    .font(.headline)
+            ZStack {
+                Color.black.ignoresSafeArea()
+                VStack(spacing: 20) {
 
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        ForEach(availableImages, id: \.self) { image in
-                            ZStack {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(height: 150)
-                                    .cornerRadius(10)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .stroke(selectedImages.contains(image) ? Color.blue : Color.clear, lineWidth: 4)
-                                    )
-                                    .onTapGesture {
-                                        toggleSelection(for: image)
+                    ScrollView {
+                        LazyVStack(spacing: 115) {
+                            ForEach(availableImages, id: \.self) { image in
+                                GeometryReader { geometry in
+                                    ZStack(alignment: .topTrailing) {
+                                        Image(uiImage: image)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: geometry.size.width, height: 300)
+                                            .clipped()
+                                            .cornerRadius(10)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .stroke(selectedImages.contains(image) ? Color.yellow : Color.clear, lineWidth: 4)
+                                            )
+                                            .onTapGesture {
+                                                toggleSelection(for: image)
+                                            }
+
+                                        if selectedImages.contains(image) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.system(size: 25))
+                                                .foregroundColor(.yellow)
+                                                .background(Color.black.clipShape(Circle()))
+                                                .offset(x: -20, y: 251)
+                                        }
                                     }
-
-                                if selectedImages.contains(image) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.blue)
-                                        .background(Color.white.clipShape(Circle()))
-                                        .offset(x: 60, y: -60)
                                 }
+                                .frame(height: 200)
                             }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                     }
-                    .padding(.horizontal)
-                }
 
-                Button("Simpan ke Galeri") {
-                    saveSelectedImages()
-                }
-                .disabled(selectedImages.isEmpty)
-                .padding()
-                .foregroundColor(.white)
-                .background(selectedImages.isEmpty ? Color.gray : Color.blue)
-                .cornerRadius(10)
+                    Text("Selected Photo: \(selectedImages.count)")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
 
-                Spacer()
-            }
-            .padding(.top)
-            .navigationTitle("Pilih Foto")
-            .navigationBarTitleDisplayMode(.inline)
-            .alert(isPresented: $showSavedAlert) {
-                Alert(title: Text("Berhasil"),
-                      message: Text("Gambar berhasil disimpan ke galeri"),
-                      dismissButton: .default(Text("OK")))
+                    Spacer()
+                }
+                .padding(.top)
             }
         }
+        .navigationBarBackButtonHidden(true)
+        .navigationTitle("Select Photo")
+        .navigationBarTitleDisplayMode(.inline)
+      
+        .navigationBarItems(leading: Button(action: {
+            presentationMode.wrappedValue.dismiss()
+        }) {
+            HStack {
+                Image(systemName: "chevron.left")
+                Text("Back")
+            }
+            .foregroundColor(.yellow)
+        })
+        .navigationBarItems(trailing:
+            Button("Done") {
+                if !selectedImages.isEmpty {
+                    saveSelectedImages()
+                }
+            }
+            .foregroundColor(selectedImages.isEmpty ? .gray : .yellow)
+            .disabled(selectedImages.isEmpty)
+        )
+        .alert(isPresented: $showSavedAlert) {
+            Alert(
+                title: Text("Berhasil"),
+                message: Text("Gambar berhasil disimpan ke galeri"),
+                dismissButton: .default(Text("OK"))
+            )
+        }
     }
-
-    // MARK: - Logic
 
     func toggleSelection(for image: UIImage) {
         if selectedImages.contains(image) {
@@ -104,5 +124,5 @@ struct SelectPhoto: View {
 }
 
 #Preview {
-    SelectPhoto()
+    SelectPhoto(availableImages: [])
 }
