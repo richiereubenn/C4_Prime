@@ -17,6 +17,14 @@ struct BodyConnection: Identifiable {
     let to: HumanBodyPoseObservation.JointName
 }
 
+
+enum CaptureState {
+    case idle           // Menunggu pose yang benar
+    case countingDown   // Menghitung mundur sebelum mengambil foto
+    case takingPicture  // Sedang dalam proses mengambil foto
+    case cooldown       // Memberi jeda setelah foto diambil
+}
+
 @Observable
 class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 
@@ -38,7 +46,11 @@ class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
         
     }
     
+    private var isOnPosition = false
+    
     private let bodyCorrection = BodyCorrectionModel()
+    
+    private var captureState: CaptureState = .idle
     
     private func increaseFrameCount(){
         if frameCount >= 100 {
@@ -73,71 +85,102 @@ class PoseEstimationModel: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
     }
 
     // 4.
+    // Ganti seluruh fungsi captureOutput Anda dengan yang ini
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         Task {
             increaseFrameCount()
             
+            // Tetap proses frame untuk menampilkan overlay secara real-time
             if let detectedPoints = await processFrame(sampleBuffer) {
                 DispatchQueue.main.async {
                     self.detectedBodyParts = detectedPoints
                 }
             }
             
+            // Lewati pemrosesan pose jika interval belum tercapai
             guard frameCount % processingInterval == 0 else {
-                    return // Lewati frame ini
+                return
             }
             
             let request = DetectHumanBodyPose3DRequest()
             
-            let obsv = try await request.perform(on: sampleBuffer)
-            guard let obsvdata : HumanBodyPose3DObservation = obsv.first else {
-                    print("\n======================\n\n\n❌No one Human detected❌\n")
-                    return
+            guard let obsvData = try? await request.perform(on: sampleBuffer).first as? HumanBodyPose3DObservation else {
+                // Jika tidak ada orang terdeteksi, reset state ke idle
+                DispatchQueue.main.async {
+                    if self.captureState == .countingDown {
+                        print("❌ Pose batal, kembali ke idle.")
+                    }
+                    self.captureState = .idle
                 }
-            
-            let onPositionObsv = bodyCorrection.onPositionFrontDoubleBicepPose(observation: obsvdata)
-
-            
-            guard onPositionObsv.isPoseCorrect else {
-                print(onPositionObsv.feedback)
-//                SpeechQueueManager.shared.stopAllSpeech()
-//                SpeechQueueManager.shared.enqueueSpeech(text: "Follow the overlay guide", priority: .background)
                 return
             }
-//            
-            print("\n✅✅✅✅✅✅BODY IS on Position")
             
+            // Pengecekan pose awal (misal: menghadap kamera)
+            let onPositionObsv = bodyCorrection.onPositionFrontDoubleBicepPose(observation: obsvData)
+            guard onPositionObsv.isPoseCorrect else {
+                return
+            }
             
-            let isPoseCorrect = bodyCorrection.DoubleBicepCorrection(bodyPose: obsvdata)
-            print("frameCount: ",frameCount)
+            // Pengecekan detail pose (Double Bicep)
+            let isPoseCorrect = bodyCorrection.DoubleBicepCorrection(bodyPose: obsvData)
+            
+            // 1. Reset state jika pose tidak lagi benar saat countdown
+            guard isPoseCorrect else {
+                DispatchQueue.main.async {
+                    if self.captureState == .countingDown {
+                        print("❌ Pose batal saat countdown, kembali ke idle.")
+                    }
+                    self.captureState = .idle
+                }
+                return
+            }
+            
+            // 2. Jika pose sudah benar, kita lanjutkan berdasarkan state saat ini.
+            // Hanya mulai proses jika state adalah .idle.
+            guard self.captureState == .idle else {
+                // Jika sedang countdown, mengambil foto, atau cooldown, jangan lakukan apa-apa.
+                return
+            }
 
-            if isPoseCorrect == true {
+            // 3. Mulai proses pengambilan foto
+            DispatchQueue.main.async {
+                print("✅ Pose terdeteksi! Memulai hitungan mundur...")
+                self.captureState = .countingDown
                 SpeechQueueManager.shared.enqueueSpeech(text: "Keep it UP!. 1,2,3", priority: .background, forceSpeak: true)
                 
-                // Skip is if on take picture
-                guard isOnTakePicture == false else {
-                    print("Skipping take picture because isOnTakePicture is true ", isOnTakePicture)
-                    return
-                }
+                // Atur timer untuk mengambil foto setelah 3.5 detik
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
-                    // 1. Mulai sebuah 'Task' baru. Membuat Task adalah tindakan sinkron.
+                    // Pastikan kita masih dalam state countingDown.
+                    // Ini mencegah pengambilan foto jika pengguna sudah bergerak.
+                    guard self.captureState == .countingDown else {
+                        print("Pengambilan foto dibatalkan karena state berubah.")
+                        return
+                    }
+                    
+                    self.captureState = .takingPicture
+                    print("📸 Mengambil foto...")
+                    
                     Task {
-                        // 2. Di dalam Task ini, Anda bebas menggunakan async/await.
                         do {
-                            self.isOnTakePicture = true
-                            print("self.isOnTakePicture: ",self.isOnTakePicture)
                             try await self.takePicture()
-                            print("Foto berhasil diambil setelah 3 detik.")
-                            self.isOnTakePicture = false
-                            print("self.isOnTakePicture: ",self.isOnTakePicture)
-
+                            print("✅ Foto berhasil diambil.")
+                            
+                            // Setelah selesai, masuk ke state cooldown
+                            self.captureState = .cooldown
+                            print("❄️ Memulai cooldown...")
+                            
+                            // Beri jeda 2 detik sebelum kembali ke idle
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                print("👍 Siap untuk pose berikutnya. Kembali ke idle.")
+                                self.captureState = .idle
+                            }
                         } catch {
-                            print("Gagal mengambil foto setelah delay: \(error)")
+                            print("Gagal mengambil foto: \(error)")
+                            self.captureState = .idle // Jika gagal, langsung kembali ke idle
                         }
                     }
                 }
             }
-   
         }
     }
 
